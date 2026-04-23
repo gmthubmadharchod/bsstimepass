@@ -13,6 +13,7 @@ YTUB_COOKIES = """
 # write here yt cookies
 """
 
+PREMIUM_DB_URL = getenv("PREMIUM_DB_URL", "")
 API_ID = int(getenv("API_ID", ""))
 API_HASH = getenv("API_HASH", "")
 BOT_TOKEN = getenv("BOT_TOKEN", "")
