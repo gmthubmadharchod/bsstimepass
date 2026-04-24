@@ -30,7 +30,6 @@ import subprocess
 from devgagan.core.mongo.settings_premium_db import clean_expired_users
 from devgagan.modules.shrink import is_user_verified
 async def generate_random_name(length=8):
-async def generate_random_name(length=8):
     return ''.join(random.choices(string.ascii_lowercase, k=length))
 
 
