@@ -27,6 +27,7 @@ from pyrogram.errors import FloodWait
 from datetime import datetime, timedelta
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import subprocess
+from devgagan.modules import *
 from devgagan.core.mongo.settings_premium_db import clean_expired_users
 from devgagan.modules.shrink import is_user_verified
 async def generate_random_name(length=8):
