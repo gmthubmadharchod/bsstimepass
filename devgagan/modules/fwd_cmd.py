@@ -1,24 +1,24 @@
 from pyrogram import filters
 from devgagan import app
 from devgagan.core.mongo.fwd_db import is_premium, is_protected
+from devgagan.core.mongo.fwd_settings_db import get_settings
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait
 import asyncio
+import os
 
 MAX_RANGE = 500
-DELAY = 1
-MAX_RETRY = 2
+DELAY = 5
 
 
 def parse(text):
     parts = text.split()[1:]
 
     if len(parts) == 1:
-        # /fwd -100xxx/1-25
         source, rng = parts[0].split("/")
         return int(source), None, rng
 
     elif len(parts) == 2:
-        # /fwd -100xxx -100yyy/1-25
         source = int(parts[0])
         target, rng = parts[1].split("/")
         return source, int(target), rng
@@ -26,86 +26,124 @@ def parse(text):
     return None, None, None
 
 
+def apply_caption(caption, settings):
+    if not caption:
+        caption = ""
+
+    # 🔁 replace
+    if settings.get("replace"):
+        for k, v in settings["replace"].items():
+            caption = caption.replace(k, v)
+
+    # 🚫 remove
+    if settings.get("remove"):
+        for w in settings["remove"]:
+            caption = caption.replace(w, "")
+
+    # 📝 extra caption
+    if settings.get("caption"):
+        caption += "\n\n" + settings["caption"]
+
+    return caption
+
+
+def apply_rename(original_name, tag):
+    if not original_name or not tag:
+        return original_name
+
+    name, ext = os.path.splitext(original_name)
+    return f"{name}{tag}{ext}"
+
+
 @app.on_message(filters.command("fwd"))
 async def fwd(client, message):
     user_id = message.from_user.id
 
-    # 🔒 premium check
+    # 🔒 non-premium
     if not await is_premium(user_id):
         return await message.reply(
-            """🔒 FWD LOCKED
-
-💎 ₹50 / 10 Days  
-📦 500 files limit  
-
-👉 https://t.me/sonuporsa"""
+            "🚫 FWD Locked\n\n💎 Upgrade to Premium 👇",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💎✨ BUY PREMIUM ✨💎", url="https://t.me/sonuporsa")]
+            ])
         )
 
     source, target, rng = parse(message.text)
 
     if source is None:
-        return await message.reply(
-            "Usage:\n"
-            "/fwd -100xxx/1-50\n"
-            "/fwd -100xxx -100yyy/1-50"
-        )
+        return await message.reply("Invalid format\nUse: /fwd -100xxx/1-10")
 
-    # 🔒 protected check
     if await is_protected(source):
-        return await message.reply("❌ This channel is protected")
+        return await message.reply("❌ Protected Channel")
 
-    # 📊 range
     if "-" in rng:
         start, end = map(int, rng.split("-"))
     else:
         start = end = int(rng)
 
     if end - start + 1 > MAX_RANGE:
-        return await message.reply("❌ Max 500 messages allowed")
+        return await message.reply("Max 500")
 
-    send_to = target if target else user_id
+    settings = await get_settings(user_id)
 
-    sent = 0
-    skipped = 0
+    # 🎯 target
+    if target:
+        send_to = target
+    elif settings.get("target"):
+        send_to = settings["target"]
+    else:
+        send_to = user_id
 
     status = await message.reply("🚀 Processing...")
 
-    for msg_id in range(start, end + 1):
+    for i in range(start, end + 1):
+        try:
+            msg = await client.get_messages(source, i)
 
-        retry = 0
-        while retry <= MAX_RETRY:
+            caption = apply_caption(msg.caption, settings)
+
+            file_name = None
+
+            if msg.document:
+                file_name = apply_rename(msg.document.file_name, settings.get("rename"))
+
+            elif msg.video:
+                file_name = apply_rename(msg.video.file_name or "video.mp4", settings.get("rename"))
+
             try:
-                # 🔥 STEALTH MODE (NO FORWARD TAG)
-                await client.copy_message(
-                    chat_id=send_to,
-                    from_chat_id=source,
-                    message_id=msg_id
-                )
+                if msg.video:
+                    await client.send_video(send_to, msg.video.file_id, caption=caption, file_name=file_name)
 
-                sent += 1
-                await asyncio.sleep(DELAY)
-                break
+                elif msg.document:
+                    await client.send_document(send_to, msg.document.file_id, caption=caption, file_name=file_name)
 
-            except FloodWait as fw:
-                wait = fw.value + 2
-                await status.edit(f"⏳ FloodWait: {wait}s...")
-                await asyncio.sleep(wait)
+                elif msg.photo:
+                    await client.send_photo(send_to, msg.photo.file_id, caption=caption)
 
-            except Exception:
-                retry += 1
-                if retry > MAX_RETRY:
-                    skipped += 1
-                    break
-                await asyncio.sleep(1)
+                else:
+                    await client.send_message(send_to, caption)
 
-        # 📊 progress update
-        if (sent + skipped) % 10 == 0:
-            await status.edit(f"📤 {sent} | ⏭ {skipped}")
+            except:
+                # fallback → self
+                if send_to != user_id:
+                    if msg.video:
+                        await client.send_video(user_id, msg.video.file_id, caption=caption, file_name=file_name)
 
-    await status.edit(
-        f"""✅ Done
+                    elif msg.document:
+                        await client.send_document(user_id, msg.document.file_id, caption=caption, file_name=file_name)
 
-📤 Sent: {sent}
-⏭ Skipped: {skipped}
-📊 Total: {end-start+1}"""
-  )
+                    elif msg.photo:
+                        await client.send_photo(user_id, msg.photo.file_id, caption=caption)
+
+                    else:
+                        await client.send_message(user_id, caption)
+
+            await asyncio.sleep(DELAY)
+
+        except FloodWait as fw:
+            await asyncio.sleep(fw.value + 2)
+
+        except:
+            continue
+
+    await status.edit("✅ Done")
