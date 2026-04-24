@@ -27,10 +27,24 @@ from pyrogram.errors import FloodWait
 from datetime import datetime, timedelta
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import subprocess
+from devgagan.core.mongo.settings_premium_db import clean_expired_users
 from devgagan.modules.shrink import is_user_verified
 async def generate_random_name(length=8):
     return ''.join(random.choices(string.ascii_lowercase, k=length))
 
+
+# 🔽 ये पूरा block add होगा
+
+async def auto_clean_loop():
+    while True:
+        await clean_expired_users()
+        await asyncio.sleep(3600)
+
+async def start_cleaner():
+    await asyncio.sleep(5)
+    asyncio.create_task(auto_clean_loop())
+
+asyncio.get_event_loop().create_task(start_cleaner())
 
 
 users_loop = {}
