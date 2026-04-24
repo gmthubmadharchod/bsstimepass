@@ -26,9 +26,20 @@ def parse_remove(text):
     return [w.strip() for w in text.split("\n") if w.strip()]
 
 
-# ⚙️ SETTINGS PANEL
+# ⚙️ SETTINGS PANEL (🔒 PREMIUM ONLY)
 @app.on_message(filters.command("fwdsettings") & filters.private)
 async def settings(client, message):
+    user_id = message.from_user.id
+
+    # 🔥 ENTRY LEVEL PREMIUM CHECK
+    if not await is_premium(user_id):
+        return await message.reply(
+            "🚫 FWD Settings Locked\n\n💎 Upgrade to Premium 👇",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💎 BUY PREMIUM", url="https://t.me/sonuporsa")]
+            ])
+        )
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("✏️ Rename Tag", callback_data="setrename"),
          InlineKeyboardButton("❌ Reset", callback_data="remove_rename")],
@@ -60,6 +71,7 @@ async def callbacks(client, cq):
     user_id = cq.from_user.id
     data = cq.data
 
+    # 🔒 SAFETY PREMIUM CHECK
     if not await is_premium(user_id):
         await cq.message.reply(
             "🔒 Premium Required",
@@ -138,11 +150,9 @@ async def input_handler(client, message):
 
     user_id = message.from_user.id
 
-    # 🔥 सबसे important guard
     if user_id not in pending:
         return
 
-    # ⏱ timeout
     if time.time() - pending[user_id]["time"] > TIMEOUT:
         pending.pop(user_id, None)
         return await message.reply("⌛ Timeout")
