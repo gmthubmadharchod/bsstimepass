@@ -603,6 +603,7 @@ m = None
 SET_PIC = "settings.jpg"
 MESS = "Customize by your end and Configure your settings ..."
 
+
 @gf.on(events.NewMessage(incoming=True, pattern='/settings'))
 async def settings_command(event):
     user_id = event.sender_id
@@ -611,8 +612,10 @@ async def settings_command(event):
         await send_settings_message(event.chat_id, user_id)
     else:
         await locked_settings(event)
-    
-    # Define the rest of the buttons
+
+
+# 🔥 SETTINGS UI (buttons yahi show honge)
+async def send_settings_message(chat_id, user_id):
     buttons = [
         [Button.inline("Set Chat ID", b'setchat'), Button.inline("Set Rename Tag", b'setrename')],
         [Button.inline("Caption", b'setcaption'), Button.inline("Replace Words", b'setreplacement')],
@@ -620,7 +623,7 @@ async def settings_command(event):
         [Button.inline("Session Login", b'addsession'), Button.inline("Logout", b'logout')],
         [Button.inline("Set Thumbnail", b'setthumb'), Button.inline("Remove Thumbnail", b'remthumb')],
         [Button.inline("PDF Wtmrk", b'pdfwt'), Button.inline("Video Wtmrk", b'watermark')],
-        [Button.inline("Upload Method", b'uploadmethod')],  # Include the dynamic Fast DL button
+        [Button.inline("Upload Method", b'uploadmethod')],
         [Button.url("Report Errors", "https://t.me/sonuporsa")]
     ]
 
@@ -632,6 +635,24 @@ async def settings_command(event):
     )
 
 
+# 🔒 LOCKED MESSAGE
+async def locked_settings(event):
+    text = """
+🔒 SETTINGS LOCKED
+
+Ye feature sirf premium users ke liye hai.
+
+💎 Buy premium to unlock all settings.
+"""
+
+    buttons = [
+        [Button.url("💰 Buy Premium", "https://t.me/sonuporsa")]
+    ]
+
+    await gf.send_message(event.chat_id, text, buttons=buttons)
+
+
+# 👇 बस यहीं तक चाहिए था
 pending_photos = {}
 
 @gf.on(events.CallbackQuery)
