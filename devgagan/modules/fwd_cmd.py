@@ -30,17 +30,14 @@ def apply_caption(caption, settings):
     if not caption:
         caption = ""
 
-    # 🔁 replace
     if settings.get("replace"):
         for k, v in settings["replace"].items():
             caption = caption.replace(k, v)
 
-    # 🚫 remove
     if settings.get("remove"):
         for w in settings["remove"]:
             caption = caption.replace(w, "")
 
-    # 📝 extra caption
     if settings.get("caption"):
         caption += "\n\n" + settings["caption"]
 
@@ -59,7 +56,7 @@ def apply_rename(original_name, tag):
 async def fwd(client, message):
     user_id = message.from_user.id
 
-    # 🔒 non-premium
+    # 🔒 NON PREMIUM
     if not await is_premium(user_id):
         return await message.reply(
             "🚫 FWD Locked\n\n💎 Upgrade to Premium 👇",
@@ -73,8 +70,28 @@ async def fwd(client, message):
     if source is None:
         return await message.reply("Invalid format\nUse: /fwd -100xxx/1-10")
 
+    # 🔒 SOURCE PROTECTED
     if await is_protected(source):
-        return await message.reply("❌ Protected Channel")
+        return await message.reply("❌ Source Channel is Protected")
+
+    settings = await get_settings(user_id)
+
+    # 🔒 TARGET PROTECTED (manual target)
+    if target and await is_protected(target):
+        return await message.reply("❌ Target Channel is Protected")
+
+    # 🔒 TARGET PROTECTED (saved target)
+    if not target and settings.get("target"):
+        if await is_protected(settings["target"]):
+            return await message.reply("❌ Saved Target is Protected")
+
+    # 🎯 TARGET FINAL
+    if target:
+        send_to = target
+    elif settings.get("target"):
+        send_to = settings["target"]
+    else:
+        send_to = user_id
 
     if "-" in rng:
         start, end = map(int, rng.split("-"))
@@ -83,16 +100,6 @@ async def fwd(client, message):
 
     if end - start + 1 > MAX_RANGE:
         return await message.reply("Max 500")
-
-    settings = await get_settings(user_id)
-
-    # 🎯 target
-    if target:
-        send_to = target
-    elif settings.get("target"):
-        send_to = settings["target"]
-    else:
-        send_to = user_id
 
     status = await message.reply("🚀 Processing...")
 
@@ -124,7 +131,7 @@ async def fwd(client, message):
                     await client.send_message(send_to, caption)
 
             except:
-                # fallback → self
+                # 🔥 FALLBACK → SELF
                 if send_to != user_id:
                     if msg.video:
                         await client.send_video(user_id, msg.video.file_id, caption=caption, file_name=file_name)
