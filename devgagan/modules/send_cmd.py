@@ -1,11 +1,11 @@
 from pyrogram import filters
 from devgagan import app
 from config import OWNER_ID
-from pyrogram.errors import FloodWait
+from pyrogram.errors import FloodWait, UserIsBlocked, PeerIdInvalid, ChatAdminRequired
 import asyncio
 
-
-DEFAULT_DELAY = 3  # seconds (safe)
+DEFAULT_DELAY = 3
+MAX_RETRY = 2
 
 
 def extract_chat(link):
@@ -47,28 +47,45 @@ async def send_cmd(client, message):
     status = await message.reply("🚀 Sending started...")
 
     for msg_id in range(start, end + 1):
-        try:
-            await client.copy_message(
-                chat_id=user_id,
-                from_chat_id=chat,
-                message_id=msg_id
-            )
 
-            sent += 1
+        retry = 0
+        while retry <= MAX_RETRY:
+            try:
+                await client.copy_message(
+                    chat_id=user_id,
+                    from_chat_id=chat,
+                    message_id=msg_id
+                )
 
-            # 🔥 smart delay (avoid flood)
-            await asyncio.sleep(DEFAULT_DELAY)
+                sent += 1
+                await asyncio.sleep(DEFAULT_DELAY)
+                break  # success → exit retry loop
 
-        except FloodWait as fw:
-            wait_time = fw.value + 2
-            await status.edit(f"⏳ FloodWait: Waiting {wait_time}s...")
-            await asyncio.sleep(wait_time)
+            # ⏳ FloodWait → wait + retry
+            except FloodWait as fw:
+                wait_time = fw.value + 2
+                await status.edit(f"⏳ FloodWait: Waiting {wait_time}s...")
+                await asyncio.sleep(wait_time)
 
-        except Exception:
-            skipped += 1
-            continue
+            # ❌ User blocked → stop completely
+            except UserIsBlocked:
+                await status.edit("❌ User has blocked the bot. Stopping...")
+                return
 
-        # optional progress update
+            # ❌ Bot not admin → stop completely
+            except (PeerIdInvalid, ChatAdminRequired):
+                await status.edit("❌ Bot is not admin in that channel or invalid link.")
+                return
+
+            # 🔁 Other errors → retry
+            except Exception:
+                retry += 1
+                if retry > MAX_RETRY:
+                    skipped += 1
+                    break
+                await asyncio.sleep(1)
+
+        # 📊 progress update
         if (sent + skipped) % 5 == 0:
             await status.edit(f"📤 Sent: {sent} | ⏭ Skipped: {skipped}")
 
@@ -78,4 +95,4 @@ async def send_cmd(client, message):
 📤 Sent: {sent}
 ⏭ Skipped: {skipped}
 📊 Total: {end-start+1}"""
-    )
+                                  )
