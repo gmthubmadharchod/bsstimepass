@@ -8,7 +8,7 @@ import asyncio
 import os
 
 MAX_RANGE = 500
-DELAY = 1
+DELAY = 5
 
 # 🔥 Forward control
 fwd_users = {}
