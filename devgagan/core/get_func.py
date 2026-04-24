@@ -606,9 +606,11 @@ MESS = "Customize by your end and Configure your settings ..."
 @gf.on(events.NewMessage(incoming=True, pattern='/settings'))
 async def settings_command(event):
     user_id = event.sender_id
-    await send_settings_message(event.chat_id, user_id)
 
-async def send_settings_message(chat_id, user_id):
+    if await is_settings_premium(user_id):
+        await send_settings_message(event.chat_id, user_id)
+    else:
+        await locked_settings(event)
     
     # Define the rest of the buttons
     buttons = [
