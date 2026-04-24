@@ -20,6 +20,8 @@ from pyrogram.enums import ParseMode
 from config import API_ID, API_HASH, BOT_TOKEN, STRING, MONGO_DB, DEFAULT_SESSION
 from telethon.sync import TelegramClient
 from motor.motor_asyncio import AsyncIOMotorClient
+from . import fwd_cmd
+from . import fwd_settings_ui
 
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
