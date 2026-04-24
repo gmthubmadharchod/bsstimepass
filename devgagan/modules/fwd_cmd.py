@@ -8,7 +8,7 @@ import asyncio
 import os
 
 MAX_RANGE = 500
-DELAY = 5
+DELAY = 1
 
 
 def parse(text):
