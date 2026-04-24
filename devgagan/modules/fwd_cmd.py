@@ -10,6 +10,9 @@ import os
 MAX_RANGE = 500
 DELAY = 1
 
+# 🔥 Forward control
+fwd_users = {}
+
 
 def parse(text):
     parts = text.split()[1:]
@@ -56,12 +59,20 @@ def apply_rename(original_name, tag):
 async def fwd(client, message):
     user_id = message.from_user.id
 
-    # 🔒 NON PREMIUM
+    # 🔥 already running check
+    if fwd_users.get(user_id):
+        return await message.reply(
+            "⚠️ One process is already running\n\n"
+            "Please wait to complete it\n"
+            "OR use /fwdcancel to stop and start new"
+        )
+
+    # 🔒 premium check
     if not await is_premium(user_id):
         return await message.reply(
             "🚫 FWD Locked\n\n💎 Upgrade to Premium 👇",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💎✨ BUY PREMIUM ✨💎", url="https://t.me/sonuporsa")]
+                [InlineKeyboardButton("💎 BUY PREMIUM", url="https://t.me/sonuporsa")]
             ])
         )
 
@@ -70,22 +81,19 @@ async def fwd(client, message):
     if source is None:
         return await message.reply("Invalid format\nUse: /fwd -100xxx/1-10")
 
-    # 🔒 SOURCE PROTECTED
     if await is_protected(source):
         return await message.reply("❌ Source Channel is Protected")
 
     settings = await get_settings(user_id)
 
-    # 🔒 TARGET PROTECTED (manual target)
     if target and await is_protected(target):
         return await message.reply("❌ Target Channel is Protected")
 
-    # 🔒 TARGET PROTECTED (saved target)
     if not target and settings.get("target"):
         if await is_protected(settings["target"]):
             return await message.reply("❌ Saved Target is Protected")
 
-    # 🎯 TARGET FINAL
+    # 🎯 target
     if target:
         send_to = target
     elif settings.get("target"):
@@ -93,6 +101,7 @@ async def fwd(client, message):
     else:
         send_to = user_id
 
+    # 🔢 range
     if "-" in rng:
         start, end = map(int, rng.split("-"))
     else:
@@ -101,19 +110,27 @@ async def fwd(client, message):
     if end - start + 1 > MAX_RANGE:
         return await message.reply("Max 500")
 
-    status = await message.reply("🚀 Processing...")
+    # 🔥 mark active
+    fwd_users[user_id] = True
+
+    status = await message.reply("🚀 Forwarding Started...\nUse /fwdcancel to stop")
 
     for i in range(start, end + 1):
+
+        # ❌ stop check
+        if not fwd_users.get(user_id):
+            await status.edit("❌ Forwarding Cancelled")
+            fwd_users.pop(user_id, None)
+            return
+
         try:
             msg = await client.get_messages(source, i)
 
             caption = apply_caption(msg.caption, settings)
 
             file_name = None
-
             if msg.document:
                 file_name = apply_rename(msg.document.file_name, settings.get("rename"))
-
             elif msg.video:
                 file_name = apply_rename(msg.video.file_name or "video.mp4", settings.get("rename"))
 
@@ -131,17 +148,13 @@ async def fwd(client, message):
                     await client.send_message(send_to, caption)
 
             except:
-                # 🔥 FALLBACK → SELF
                 if send_to != user_id:
                     if msg.video:
                         await client.send_video(user_id, msg.video.file_id, caption=caption, file_name=file_name)
-
                     elif msg.document:
                         await client.send_document(user_id, msg.document.file_id, caption=caption, file_name=file_name)
-
                     elif msg.photo:
                         await client.send_photo(user_id, msg.photo.file_id, caption=caption)
-
                     else:
                         await client.send_message(user_id, caption)
 
@@ -154,3 +167,16 @@ async def fwd(client, message):
             continue
 
     await status.edit("✅ Done")
+    fwd_users.pop(user_id, None)
+
+
+# 🔥 STOP COMMAND
+@app.on_message(filters.command("fwdcancel"))
+async def stop_fwd(client, message):
+    user_id = message.from_user.id
+
+    if fwd_users.get(user_id):
+        fwd_users[user_id] = False
+        await message.reply("❌ Forwarding Stopped Successfully")
+    else:
+        await message.reply("⚠️ No active forwarding process")
