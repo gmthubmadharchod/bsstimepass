@@ -143,7 +143,7 @@ async def cancel_cmd(client, message):
 
 
 # 📩 INPUT HANDLER (SAFE)
-@app.on_message(filters.private & filters.text & ~filters.command(None))
+@app.on_message(filters.private & filters.text & ~filters.regex(r"^/"))
 async def input_handler(client, message):
     if not message.from_user:
         return
