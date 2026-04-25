@@ -143,9 +143,12 @@ async def cancel_cmd(client, message):
 
 
 # 📩 INPUT HANDLER (SAFE)
-@app.on_message(filters.private & filters.text)
+@app.on_message(filters.private & filters.text & ~filters.command(None))
 async def input_handler(client, message):
     if not message.from_user:
+        return
+
+    if message.text.startswith("/"):
         return
 
     user_id = message.from_user.id
