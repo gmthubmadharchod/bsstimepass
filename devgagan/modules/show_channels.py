@@ -5,9 +5,14 @@ from devgagan.core.mongo.sst_db import save_chat, get_all_chats, delete_chat
 
 
 # 🔄 AUTO SAVE (ONLY ADMIN CHATS)
-@app.on_message(filters.group | filters.channel)
+# ✅ FIX: group add kiya + commands untouched
+@app.on_message(filters.group | filters.channel, group=10)
 async def auto_store(client, message):
     chat = message.chat
+
+    # ❌ commands ko ignore (safe check)
+    if message.text and message.text.startswith("/"):
+        return
 
     try:
         member = await client.get_chat_member(chat.id, "me")
@@ -19,7 +24,7 @@ async def auto_store(client, message):
         await save_chat(
             chat.id,
             chat.title or "Unknown",
-            chat.type   # 🔥 FIXED (NO str)
+            chat.type
         )
 
     except Exception as e:
@@ -41,7 +46,7 @@ async def show_channels(client, message):
     for chat in chats:
         cid = chat.get("_id")
         name = chat.get("title")
-        ctype = str(chat.get("type")).lower()   # 🔥 SAFE FIX
+        ctype = str(chat.get("type")).lower()
 
         try:
             member = await client.get_chat_member(cid, "me")
@@ -55,7 +60,6 @@ async def show_channels(client, message):
             await delete_chat(cid)
             continue
 
-        # 🔥 FIXED TYPE CHECK
         if "channel" in ctype:
             channels.append((name, cid))
         elif "group" in ctype:
