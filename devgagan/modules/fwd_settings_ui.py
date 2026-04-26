@@ -11,6 +11,7 @@ pending = {}
 TIMEOUT = 60
 
 
+# 💎 BUY BUTTON
 def buy_btn():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💎 BUY PREMIUM", url="https://t.me/sonuporsa")]
@@ -23,7 +24,10 @@ async def settings(client, message):
     user_id = message.from_user.id
 
     if not await is_premium(user_id):
-        return await message.reply("🚫 FWD Settings Locked", reply_markup=buy_btn())
+        return await message.reply(
+            "🚫 **FWD Settings Locked**\n\n💎 Premium lene ke liye click karo 👇",
+            reply_markup=buy_btn()
+        )
 
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("✏️ Rename", callback_data="fwd_setrename"),
@@ -44,10 +48,10 @@ async def settings(client, message):
         [InlineKeyboardButton("♻️ RESET ALL", callback_data="fwd_resetall")]
     ])
 
-    await message.reply("⚙️ FWD Settings Panel", reply_markup=buttons)
+    await message.reply("⚙️ **FWD Settings Panel**", reply_markup=buttons)
 
 
-# 🔘 CALLBACK HANDLER (PREFIX FIX)
+# 🔘 CALLBACK HANDLER (PREFIX SAFE)
 @app.on_callback_query(filters.regex("^fwd_"))
 async def callbacks(client, cq):
     user_id = cq.from_user.id
@@ -60,8 +64,7 @@ async def callbacks(client, cq):
     try:
         if data in ("setrename", "setcaption", "setchat", "setreplace", "setremove"):
             pending[user_id] = {"type": data, "time": time.time()}
-
-            await cq.message.reply("✏️ Send value (use /fcancel to cancel)")
+            await cq.message.reply("✏️ Send value\nUse /fcancel to cancel")
 
         elif data == "remove_rename":
             await remove_setting(user_id, "rename")
@@ -84,27 +87,33 @@ async def callbacks(client, cq):
         await cq.answer("✅ Done")
 
     except Exception as e:
-        print(e)
-        await cq.answer("Error")
+        print("Callback Error:", e)
+        await cq.answer("❌ Error")
 
 
-# ❌ CANCEL
-@app.on_message(filters.command("fcancel"))
+# ❌ CANCEL CMD
+@app.on_message(filters.command("fcancel") & filters.private)
 async def cancel_cmd(client, message):
-    pending.pop(message.from_user.id, None)
+    user_id = message.from_user.id
+    pending.pop(user_id, None)
     await message.reply("❌ Cancelled")
 
 
-# 📩 INPUT
-@app.on_message(filters.private & filters.text)
+# 📩 INPUT HANDLER (SAFE — COMMAND IGNORE)
+@app.on_message(filters.private & filters.text & ~filters.regex(r"^/"))
 async def input_handler(client, message):
-    if message.text.startswith("/"):
+    if not message.from_user:
         return
 
     user_id = message.from_user.id
 
     if user_id not in pending:
         return
+
+    # ⏳ timeout
+    if time.time() - pending[user_id]["time"] > TIMEOUT:
+        pending.pop(user_id, None)
+        return await message.reply("⌛ Timeout")
 
     key = pending[user_id]["type"]
     text = message.text.strip()
@@ -120,14 +129,20 @@ async def input_handler(client, message):
             await set_setting(user_id, "target", int(text))
 
         elif key == "setreplace":
-            await set_setting(user_id, "replace", {})
+            rep = {}
+            if "," in text:
+                old, new = text.split(",", 1)
+                rep[old.strip()] = new.strip()
+            await set_setting(user_id, "replace", rep)
 
         elif key == "setremove":
-            await set_setting(user_id, "remove", [text])
+            words = [w.strip() for w in text.split("\n") if w.strip()]
+            await set_setting(user_id, "remove", words)
 
         await message.reply("✅ Saved")
 
     except:
         await message.reply("❌ Invalid input")
 
-    pending.pop(user_id, None)
+    finally:
+        pending.pop(user_id, None)
