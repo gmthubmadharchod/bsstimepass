@@ -4,17 +4,21 @@ from config import OWNER_ID
 from devgagan.core.mongo.sst_db import save_chat, get_all_chats, delete_chat
 
 
-# 🔄 AUTO SAVE (ONLY ADMIN CHATS)
-# ✅ FIX: group add kiya + commands untouched
-@app.on_message(filters.group | filters.channel, group=10)
+# 🔄 AUTO SAVE (SMART VERSION)
+@app.on_message((filters.group | filters.channel), group=10)
 async def auto_store(client, message):
     chat = message.chat
 
-    # ❌ commands ko ignore (safe check)
+    # ❌ commands skip (important)
     if message.text and message.text.startswith("/"):
         return
 
     try:
+        # 🔥 already saved check (IMPORTANT OPTIMIZATION)
+        chats = await get_all_chats()
+        if any(c.get("_id") == chat.id for c in chats):
+            return
+
         member = await client.get_chat_member(chat.id, "me")
 
         # ✅ only admin chats
@@ -31,7 +35,7 @@ async def auto_store(client, message):
         print("AUTO STORE ERROR:", e)
 
 
-# 📂 SHOW + AUTO CLEAN
+# 📂 SHOW + CLEAN
 @app.on_message(filters.command("showchnls") & filters.user(OWNER_ID))
 async def show_channels(client, message):
 
@@ -51,7 +55,6 @@ async def show_channels(client, message):
         try:
             member = await client.get_chat_member(cid, "me")
 
-            # ❌ remove if not admin
             if member.status not in ["administrator", "creator"]:
                 await delete_chat(cid)
                 continue
