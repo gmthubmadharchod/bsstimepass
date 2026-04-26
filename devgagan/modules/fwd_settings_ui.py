@@ -11,101 +11,57 @@ pending = {}
 TIMEOUT = 60
 
 
-# 🔁 replace parser
-def parse_replace(text):
-    rep = {}
-    for line in text.split("\n"):
-        if "," in line:
-            old, new = line.split(",", 1)
-            rep[old.strip()] = new.strip()
-    return rep
+def buy_btn():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💎 BUY PREMIUM", url="https://t.me/sonuporsa")]
+    ])
 
 
-# 🚫 remove parser
-def parse_remove(text):
-    return [w.strip() for w in text.split("\n") if w.strip()]
-
-
-# ⚙️ SETTINGS PANEL (🔒 PREMIUM ONLY)
+# ⚙️ SETTINGS PANEL
 @app.on_message(filters.command("fwdsettings") & filters.private)
 async def settings(client, message):
     user_id = message.from_user.id
 
-    # 🔥 ENTRY LEVEL PREMIUM CHECK
     if not await is_premium(user_id):
-        return await message.reply(
-            "🚫 FWD Settings Locked\n\n💎 Upgrade to Premium 👇",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💎 BUY PREMIUM", url="https://t.me/sonuporsa")]
-            ])
-        )
+        return await message.reply("🚫 FWD Settings Locked", reply_markup=buy_btn())
 
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ Rename Tag", callback_data="setrename"),
-         InlineKeyboardButton("❌ Reset", callback_data="remove_rename")],
+        [InlineKeyboardButton("✏️ Rename", callback_data="fwd_setrename"),
+         InlineKeyboardButton("❌ Reset", callback_data="fwd_remove_rename")],
 
-        [InlineKeyboardButton("📝 Caption", callback_data="setcaption"),
-         InlineKeyboardButton("❌ Reset", callback_data="remove_caption")],
+        [InlineKeyboardButton("📝 Caption", callback_data="fwd_setcaption"),
+         InlineKeyboardButton("❌ Reset", callback_data="fwd_remove_caption")],
 
-        [InlineKeyboardButton("📌 Chat ID", callback_data="setchat"),
-         InlineKeyboardButton("❌ Reset", callback_data="remove_target")],
+        [InlineKeyboardButton("📌 Chat ID", callback_data="fwd_setchat"),
+         InlineKeyboardButton("❌ Reset", callback_data="fwd_remove_target")],
 
-        [InlineKeyboardButton("🔁 Replace", callback_data="setreplace"),
-         InlineKeyboardButton("❌ Reset", callback_data="remove_replace")],
+        [InlineKeyboardButton("🔁 Replace", callback_data="fwd_setreplace"),
+         InlineKeyboardButton("❌ Reset", callback_data="fwd_remove_replace")],
 
-        [InlineKeyboardButton("🚫 Remove Words", callback_data="setremove"),
-         InlineKeyboardButton("❌ Reset", callback_data="clear_words")],
+        [InlineKeyboardButton("🚫 Remove Words", callback_data="fwd_setremove"),
+         InlineKeyboardButton("❌ Reset", callback_data="fwd_clear_words")],
 
-        [InlineKeyboardButton("💎 BUY PREMIUM", url="https://t.me/sonuporsa")],
-        [InlineKeyboardButton("♻️ RESET ALL", callback_data="resetall")]
+        [InlineKeyboardButton("♻️ RESET ALL", callback_data="fwd_resetall")]
     ])
 
-    await message.reply_text("⚙️ FWD Settings Panel", reply_markup=buttons)
+    await message.reply("⚙️ FWD Settings Panel", reply_markup=buttons)
 
 
-# 🔘 CALLBACK HANDLER
-@app.on_callback_query(filters.regex(
-    "^(setrename|setcaption|setchat|setreplace|setremove|remove_rename|remove_caption|remove_target|remove_replace|clear_words|resetall|cancel)$"
-))
+# 🔘 CALLBACK HANDLER (PREFIX FIX)
+@app.on_callback_query(filters.regex("^fwd_"))
 async def callbacks(client, cq):
     user_id = cq.from_user.id
-    data = cq.data
+    data = cq.data.replace("fwd_", "")
 
-    # 🔒 SAFETY PREMIUM CHECK
     if not await is_premium(user_id):
-        await cq.message.reply(
-            "🔒 Premium Required",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💎 BUY PREMIUM", url="https://t.me/sonuporsa")]
-            ])
-        )
+        await cq.message.reply("🚫 Premium Required", reply_markup=buy_btn())
         return await cq.answer()
 
     try:
         if data in ("setrename", "setcaption", "setchat", "setreplace", "setremove"):
             pending[user_id] = {"type": data, "time": time.time()}
 
-            cancel_btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
-            ])
-
-            msg = {
-                "setrename": "Send rename tag (e.g. _Sonu)",
-                "setcaption": "Send caption",
-                "setchat": "Send chat id (-100...)",
-                "setreplace": "Send:\nold,new",
-                "setremove": "Send words line by line"
-            }
-
-            await cq.message.reply(
-                f"{msg[data]}\n\nUse /fcancel to cancel",
-                reply_markup=cancel_btn
-            )
-
-        elif data == "cancel":
-            pending.pop(user_id, None)
-            await cq.answer("Cancelled", show_alert=True)
-            return
+            await cq.message.reply("✏️ Send value (use /fcancel to cancel)")
 
         elif data == "remove_rename":
             await remove_setting(user_id, "rename")
@@ -125,29 +81,23 @@ async def callbacks(client, cq):
         elif data == "resetall":
             await reset_all(user_id)
 
-        await cq.answer("Done")
+        await cq.answer("✅ Done")
 
-    except:
+    except Exception as e:
+        print(e)
         await cq.answer("Error")
 
 
-# ❌ CANCEL CMD
-@app.on_message(filters.command("fcancel") & filters.private)
+# ❌ CANCEL
+@app.on_message(filters.command("fcancel"))
 async def cancel_cmd(client, message):
-    user_id = message.from_user.id
-    if user_id in pending:
-        pending.pop(user_id)
-        await message.reply("❌ Cancelled")
-    else:
-        await message.reply("Nothing to cancel")
+    pending.pop(message.from_user.id, None)
+    await message.reply("❌ Cancelled")
 
 
-# 📩 INPUT HANDLER (SAFE)
-@app.on_message(filters.private & filters.text & ~filters.regex(r"^/"))
+# 📩 INPUT
+@app.on_message(filters.private & filters.text)
 async def input_handler(client, message):
-    if not message.from_user:
-        return
-
     if message.text.startswith("/"):
         return
 
@@ -155,10 +105,6 @@ async def input_handler(client, message):
 
     if user_id not in pending:
         return
-
-    if time.time() - pending[user_id]["time"] > TIMEOUT:
-        pending.pop(user_id, None)
-        return await message.reply("⌛ Timeout")
 
     key = pending[user_id]["type"]
     text = message.text.strip()
@@ -174,15 +120,14 @@ async def input_handler(client, message):
             await set_setting(user_id, "target", int(text))
 
         elif key == "setreplace":
-            await set_setting(user_id, "replace", parse_replace(text))
+            await set_setting(user_id, "replace", {})
 
         elif key == "setremove":
-            await set_setting(user_id, "remove", parse_remove(text))
+            await set_setting(user_id, "remove", [text])
 
         await message.reply("✅ Saved")
 
     except:
         await message.reply("❌ Invalid input")
 
-    finally:
-        pending.pop(user_id, None)
+    pending.pop(user_id, None)
