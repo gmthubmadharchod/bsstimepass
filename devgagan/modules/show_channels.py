@@ -19,11 +19,11 @@ async def auto_store(client, message):
         await save_chat(
             chat.id,
             chat.title or "Unknown",
-            str(chat.type)
+            chat.type   # 🔥 FIXED (NO str)
         )
 
-    except:
-        pass
+    except Exception as e:
+        print("AUTO STORE ERROR:", e)
 
 
 # 📂 SHOW + AUTO CLEAN
@@ -41,7 +41,7 @@ async def show_channels(client, message):
     for chat in chats:
         cid = chat.get("_id")
         name = chat.get("title")
-        ctype = chat.get("type")
+        ctype = str(chat.get("type")).lower()   # 🔥 SAFE FIX
 
         try:
             member = await client.get_chat_member(cid, "me")
@@ -52,13 +52,13 @@ async def show_channels(client, message):
                 continue
 
         except:
-            # ❌ remove invalid chats
             await delete_chat(cid)
             continue
 
-        if ctype == "ChatType.CHANNEL":
+        # 🔥 FIXED TYPE CHECK
+        if "channel" in ctype:
             channels.append((name, cid))
-        else:
+        elif "group" in ctype:
             groups.append((name, cid))
 
     text = "📢 CHANNELS\n\n"
