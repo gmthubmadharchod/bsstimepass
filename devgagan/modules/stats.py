@@ -28,27 +28,22 @@ from pyrogram.enums import ChatType
 from pyrogram.enums import ParseMode
 
 
-@app.on_message(filters.command("id"))
+@app.on_message(filters.command("id") & (filters.private | filters.group | filters.channel))
 async def get_id(client, message):
 
-    # 📢 CHANNEL
     if message.chat.type == "channel":
-        return await message.reply(
-            f"📢 Channel ID:\n`{message.chat.id}`"
-        )
+        return await message.reply(f"📢 Channel ID:\n`{message.chat.id}`")
 
-    # 👥 GROUP / SUPERGROUP
     elif message.chat.type in ["group", "supergroup"]:
         return await message.reply(
             f"👥 Chat ID: `{message.chat.id}`\n"
             f"👤 Your ID: `{message.from_user.id}`"
         )
 
-    # 👤 PRIVATE
-    elif message.chat.type == "private":
+    else:
         return await message.reply(
             f"🆔 Your ID: `{message.from_user.id}`"
-)
+        )
 
 start_time = time.time()
 
